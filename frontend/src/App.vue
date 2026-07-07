@@ -3,11 +3,11 @@
     <div class="panel source-panel">
       <div class="panel-header">
         <div class="title-wrap">
-          <h2>待命名</h2>
+          <h2>待录入图表</h2>
           <span class="badge">{{ files.length }} 项</span>
         </div>
         <div class="toolbar">
-          <button class="icon-button" @click="loadFiles">⟳</button>
+          <button class="icon-button" @click="refreshSourcePreview">⟳</button>
           <select v-model="selectedFile" @change="handleFileChange">
             <option value="">选择挂载目录中的 xls 文件</option>
             <option v-for="file in files" :key="file" :value="file">{{ file }}</option>
@@ -56,16 +56,27 @@
           <span>录入规则</span>
           <textarea v-model="form.values" rows="7" placeholder="如 51 +58 66 +71 73 76"></textarea>
         </label>
-        <button class="action-button preview" @click="previewResult">预览</button>
-        <button class="action-button execute" @click="executeResult">执行</button>
-        <div class="tip">空格表示下一行；+ 表示先插入空白行再录入；不带 + 则直接录入原表当前行</div>
+        <div class="action-row">
+          <button class="action-button preview" title="预览" aria-label="预览" @click="previewResult">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+          <button class="action-button execute" title="执行" aria-label="执行" @click="executeResult">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h12" />
+              <path d="M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
     <div class="panel result-panel">
       <div class="panel-header">
         <div class="title-wrap">
-          <h2>命名结果</h2>
+          <h2>录入结果</h2>
           <span v-if="preview.generated.length" class="badge primary">{{ preview.generated.length }} 条</span>
         </div>
         <button class="icon-button" @click="previewResult">↻</button>
@@ -150,7 +161,7 @@ async function loadSourcePreview(reset = false) {
     return
   }
   sourceLoading.value = true
-  const offset = reset ? 0 : sourceOffset.value
+  const offset = reset ? sourceStartOffset() : sourceOffset.value
   try {
     const response = await fetch(`/api/preview?file=${encodeURIComponent(selectedFile.value)}&offset=${offset}&limit=${previewLimit}`)
     const data = await response.json()
@@ -175,6 +186,18 @@ async function loadSourcePreview(reset = false) {
   } finally {
     sourceLoading.value = false
   }
+}
+
+async function refreshSourcePreview() {
+  await loadFiles()
+  await loadSourcePreview(true)
+}
+
+function sourceStartOffset() {
+  if (!form.startRow || form.startRow < 1) {
+    return 0
+  }
+  return form.startRow - 1
 }
 
 function handleSourceScroll(event) {

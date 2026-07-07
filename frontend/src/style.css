@@ -185,25 +185,42 @@ th {
   resize: none;
 }
 
+.action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 .action-button {
-  border: none;
-  border-radius: 20px;
-  padding: 16px 18px;
+  height: 54px;
+  border: 1px solid #cbd9ea;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
   cursor: pointer;
-  color: white;
-  font-size: 16px;
-  font-weight: 700;
+  color: #3f5878;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-button svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .action-button.preview {
-  background: linear-gradient(135deg, #8cc9ff, #2395ff);
+  color: #1583ff;
 }
 
 .action-button.execute {
-  background: linear-gradient(135deg, #74d4b2, #13a870);
+  color: #13a870;
 }
 
-.tip,
 .empty-state,
 .loading-state {
   color: #8090a7;
