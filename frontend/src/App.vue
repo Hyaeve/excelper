@@ -18,7 +18,7 @@
         <div v-if="sourceSheets.length" class="sheet-preview">
           <div v-for="sheet in sourceSheets" :key="sheet.name" class="sheet-card">
             <div class="sheet-title">{{ sheet.name }}</div>
-            <div class="table-wrap">
+            <div class="table-wrap source-table-wrap" @scroll="handleSourceScroll">
               <table>
                 <tbody>
                   <tr v-for="(row, rowIndex) in sheet.rows" :key="rowIndex">
@@ -28,6 +28,7 @@
               </table>
             </div>
           </div>
+          <div v-if="sourceLoading" class="loading-state">正在加载...</div>
         </div>
         <div v-else class="empty-state">请选择一个挂载目录内的 xls 文件进行预览</div>
       </div>
@@ -105,9 +106,13 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 
+const previewLimit = 60
 const files = ref([])
 const selectedFile = ref('')
 const sourceSheets = ref([])
+const sourceOffset = ref(0)
+const sourceHasMore = ref(false)
+const sourceLoading = ref(false)
 const preview = reactive({
   generated: [],
   outputName: '',
@@ -130,11 +135,53 @@ async function loadFiles() {
 async function handleFileChange() {
   if (!selectedFile.value) {
     sourceSheets.value = []
+    sourceOffset.value = 0
+    sourceHasMore.value = false
     return
   }
-  const response = await fetch(`/api/preview?file=${encodeURIComponent(selectedFile.value)}`)
-  const data = await response.json()
-  sourceSheets.value = data.sheets || []
+  await loadSourcePreview(true)
+}
+
+async function loadSourcePreview(reset = false) {
+  if (!selectedFile.value || sourceLoading.value) {
+    return
+  }
+  if (!reset && !sourceHasMore.value) {
+    return
+  }
+  sourceLoading.value = true
+  const offset = reset ? 0 : sourceOffset.value
+  try {
+    const response = await fetch(`/api/preview?file=${encodeURIComponent(selectedFile.value)}&offset=${offset}&limit=${previewLimit}`)
+    const data = await response.json()
+    if (!response.ok) {
+      alert(data.error || '加载预览失败')
+      return
+    }
+    const nextSheets = data.sheets || []
+    if (reset) {
+      sourceSheets.value = nextSheets
+    } else {
+      sourceSheets.value = sourceSheets.value.map((sheet) => {
+        const nextSheet = nextSheets.find((item) => item.name === sheet.name)
+        if (!nextSheet) {
+          return sheet
+        }
+        return { ...nextSheet, rows: [...sheet.rows, ...nextSheet.rows] }
+      })
+    }
+    sourceOffset.value = offset + previewLimit
+    sourceHasMore.value = nextSheets.some((sheet) => sheet.hasMore)
+  } finally {
+    sourceLoading.value = false
+  }
+}
+
+function handleSourceScroll(event) {
+  const target = event.target
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 24) {
+    loadSourcePreview(false)
+  }
 }
 
 function validateForm() {
@@ -184,6 +231,7 @@ async function executeResult() {
   }
   alert(`${data.message}\n备份文件: ${data.backupName}\n输出文件: ${data.outputName}`)
   await loadFiles()
+  await loadSourcePreview(true)
 }
 
 onMounted(loadFiles)

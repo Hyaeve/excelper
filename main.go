@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,8 +35,10 @@ type PreviewCell struct {
 }
 
 type SheetPreview struct {
-	Name string        `json:"name"`
-	Rows [][]string    `json:"rows"`
+	Name      string     `json:"name"`
+	Rows      [][]string `json:"rows"`
+	RowOffset int        `json:"rowOffset"`
+	HasMore   bool       `json:"hasMore"`
 }
 
 type PreviewResponse struct {
@@ -100,6 +103,8 @@ func previewSourceFile(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "缺少文件名"})
 		return
 	}
+	rowOffset := parseQueryInt(ctx, "offset", 0)
+	rowLimit := parseQueryInt(ctx, "limit", 60)
 	fullPath := filepath.Join(mountedDir, fileName)
 	book, err := xls.Open(fullPath, "utf-8")
 	if err != nil {
@@ -108,7 +113,7 @@ func previewSourceFile(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{
 		"sourceName": fileName,
-		"sheets":     buildSheetPreviews(book, 60, 12),
+		"sheets":     buildSheetPreviews(book, rowOffset, rowLimit, 12),
 	})
 }
 
@@ -136,7 +141,7 @@ func previewRule(ctx *gin.Context) {
 	outputName := filepath.Base(req.FileName)
 	ctx.JSON(http.StatusOK, PreviewResponse{
 		SourceName: req.FileName,
-		Sheets:     buildSheetPreviews(book, 60, 12),
+		Sheets:     buildSheetPreviews(book, 0, 60, 12),
 		Generated:  buildGeneratedPreview(req, items),
 		OutputName: outputName,
 		BackupName: backupName,
@@ -244,15 +249,31 @@ func buildGeneratedPreview(req RuleRequest, items []ParsedItem) []PreviewCell {
 	return cells
 }
 
-func buildSheetPreviews(book *xls.WorkBook, maxRows int, maxCols int) []SheetPreview {
+func parseQueryInt(ctx *gin.Context, key string, fallback int) int {
+	value, err := strconv.Atoi(ctx.DefaultQuery(key, strconv.Itoa(fallback)))
+	if err != nil || value < 0 {
+		return fallback
+	}
+	return value
+}
+
+func buildSheetPreviews(book *xls.WorkBook, rowOffset int, rowLimit int, maxCols int) []SheetPreview {
+	if rowLimit <= 0 || rowLimit > 200 {
+		rowLimit = 60
+	}
 	previews := make([]SheetPreview, 0, book.NumSheets())
 	for index := 0; index < book.NumSheets(); index++ {
 		sheet := book.GetSheet(index)
 		if sheet == nil {
 			continue
 		}
-		rows := make([][]string, 0)
-		for i := 0; i <= int(sheet.MaxRow) && i < maxRows; i++ {
+		maxRow := int(sheet.MaxRow)
+		rows := make([][]string, 0, rowLimit)
+		endRow := rowOffset + rowLimit
+		if endRow > maxRow+1 {
+			endRow = maxRow + 1
+		}
+		for i := rowOffset; i < endRow; i++ {
 			row := sheet.Row(i)
 			cells := make([]string, 0, maxCols)
 			for j := 0; j < maxCols; j++ {
@@ -260,7 +281,12 @@ func buildSheetPreviews(book *xls.WorkBook, maxRows int, maxCols int) []SheetPre
 			}
 			rows = append(rows, cells)
 		}
-		previews = append(previews, SheetPreview{Name: sheet.Name, Rows: rows})
+		previews = append(previews, SheetPreview{
+			Name:      sheet.Name,
+			Rows:      rows,
+			RowOffset: rowOffset,
+			HasMore:   endRow <= maxRow,
+		})
 	}
 	return previews
 }
