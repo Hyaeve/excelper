@@ -53,7 +53,7 @@
         </label>
         <label>
           <span>录入规则</span>
-          <textarea v-model="form.values" rows="7" placeholder="如 51、插入58、66、插入71、73、76"></textarea>
+          <textarea v-model="form.values" rows="7" placeholder="如 51、in58、66、in71、73、76"></textarea>
         </label>
         <button class="action-button preview" @click="previewResult">预览</button>
         <button class="action-button execute" @click="executeResult">执行</button>

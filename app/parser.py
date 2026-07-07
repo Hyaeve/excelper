@@ -22,7 +22,7 @@ def parse_instruction(text: str) -> FillInstruction:
     parts = [part.strip() for part in normalized.split(";") if part.strip()]
     if len(parts) != 4:
         raise ValueError(
-            "指令格式错误，应为：起始行;固定前缀;后缀;51,插入58,66,插入71"
+            "指令格式错误，应为：起始行;固定前缀;后缀;51,in58,66,in71"
         )
 
     start_row_text, prefix, suffix, sequence_text = parts
@@ -52,7 +52,7 @@ def _parse_sequence(sequence_text: str) -> list[SequenceItem]:
         inserted = False
         number_text = token
 
-        if token.startswith("插入"):
+        if token.lower().startswith("in"):
             inserted = True
             number_text = token[2:].strip()
 

@@ -69,7 +69,7 @@ func main() {
 	router.POST("/api/preview", previewRule)
 	router.POST("/api/execute", executeRule)
 	router.GET("/api/download/:name", downloadFile)
-	_ = router.Run(":8080")
+	_ = router.Run(":3012")
 }
 
 func listMountedFiles(ctx *gin.Context) {
@@ -204,9 +204,9 @@ func parseValues(raw string) ([]ParsedItem, error) {
 			continue
 		}
 		item := ParsedItem{Raw: part}
-		if strings.HasPrefix(part, "插入") {
+		if strings.HasPrefix(strings.ToLower(part), "in") {
 			item.Inserted = true
-			item.Value = strings.TrimSpace(strings.TrimPrefix(part, "插入"))
+			item.Value = strings.TrimSpace(part[2:])
 		} else {
 			item.Value = part
 		}
