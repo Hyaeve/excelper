@@ -22,7 +22,7 @@ def parse_instruction(text: str) -> FillInstruction:
     parts = [part.strip() for part in normalized.split(";") if part.strip()]
     if len(parts) != 4:
         raise ValueError(
-            "指令格式错误，应为：起始行;固定前缀;后缀;51,in58,66,in71"
+            "指令格式错误，应为：起始行;固定前缀;后缀;51 +58 66 +71"
         )
 
     start_row_text, prefix, suffix, sequence_text = parts
@@ -45,16 +45,17 @@ def parse_instruction(text: str) -> FillInstruction:
 
 
 def _parse_sequence(sequence_text: str) -> list[SequenceItem]:
-    tokens = [token.strip() for token in sequence_text.split(",") if token.strip()]
+    normalized = sequence_text.replace("，", " ").replace("、", " ").replace(",", " ")
+    tokens = [token.strip() for token in normalized.split() if token.strip()]
     items: list[SequenceItem] = []
 
     for token in tokens:
         inserted = False
         number_text = token
 
-        if token.lower().startswith("in"):
+        if token.startswith("+"):
             inserted = True
-            number_text = token[2:].strip()
+            number_text = token[1:].strip()
 
         if not number_text.isdigit():
             raise ValueError(f"无法解析序列项: {token}")

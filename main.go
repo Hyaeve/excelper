@@ -1,18 +1,19 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/extrame/xls"
+	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 )
 
 type RuleRequest struct {
@@ -131,7 +132,8 @@ func previewRule(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	backupName, outputName := buildFileNames(req.FileName)
+	backupName := buildBackupName(req.FileName)
+	outputName := filepath.Base(req.FileName)
 	ctx.JSON(http.StatusOK, PreviewResponse{
 		SourceName: req.FileName,
 		Sheets:     buildSheetPreviews(book, 60, 12),
@@ -157,24 +159,21 @@ func executeRule(ctx *gin.Context) {
 		return
 	}
 	fullPath := filepath.Join(mountedDir, filepath.Base(req.FileName))
-	content, err := os.ReadFile(fullPath)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	backupName, outputName := buildFileNames(req.FileName)
-	if err := os.WriteFile(filepath.Join(mountedDir, backupName), content, 0644); err != nil {
+	backupName := buildBackupName(req.FileName)
+	backupPath := filepath.Join(mountedDir, backupName)
+	if err := copyFile(fullPath, backupPath); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if err := os.WriteFile(filepath.Join(mountedDir, outputName), content, 0644); err != nil {
+	if err := applyRuleToXLS(fullPath, req, items); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	outputName := filepath.Base(req.FileName)
 	ctx.JSON(http.StatusOK, ExecuteResponse{
 		OutputName: outputName,
 		BackupName: backupName,
-		Message:    fmt.Sprintf("已生成备份文件和输出文件，规则项数量 %d", len(items)),
+		Message:    fmt.Sprintf("已备份原文件并覆盖写入，规则项数量 %d", len(items)),
 	})
 }
 
@@ -195,18 +194,14 @@ func downloadFile(ctx *gin.Context) {
 }
 
 func parseValues(raw string) ([]ParsedItem, error) {
-	normalized := strings.ReplaceAll(raw, "，", "、")
-	parts := strings.Split(normalized, "、")
+	normalized := strings.NewReplacer("，", " ", "、", " ", ",", " ").Replace(raw)
+	parts := strings.Fields(normalized)
 	items := make([]ParsedItem, 0, len(parts))
 	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
 		item := ParsedItem{Raw: part}
-		if strings.HasPrefix(strings.ToLower(part), "in") {
+		if strings.HasPrefix(part, "+") {
 			item.Inserted = true
-			item.Value = strings.TrimSpace(part[2:])
+			item.Value = strings.TrimSpace(strings.TrimPrefix(part, "+"))
 		} else {
 			item.Value = part
 		}
@@ -225,8 +220,8 @@ func validateRuleRequest(req RuleRequest) error {
 	if strings.TrimSpace(req.FileName) == "" {
 		return fmt.Errorf("必须先选择挂载目录中的 xls 文件")
 	}
-	if strings.TrimSpace(req.Column) == "" {
-		return fmt.Errorf("必须填写目标列")
+	if _, err := columnNameToNumber(req.Column); err != nil {
+		return err
 	}
 	if req.StartRow <= 0 {
 		return fmt.Errorf("每次录入语法操作都必须定义从表格第几行开始")
@@ -270,15 +265,111 @@ func buildSheetPreviews(book *xls.WorkBook, maxRows int, maxCols int) []SheetPre
 	return previews
 }
 
-func buildFileNames(original string) (string, string) {
+func buildBackupName(original string) string {
 	ext := filepath.Ext(original)
-	base := strings.TrimSuffix(original, ext)
+	base := strings.TrimSuffix(filepath.Base(original), ext)
 	timestamp := time.Now().Format("200601021504")
-	backupName := fmt.Sprintf("%s_backup_%s%s", base, timestamp, ext)
-	outputName := fmt.Sprintf("%s_output_%s%s", base, timestamp, ext)
-	return backupName, outputName
+	return fmt.Sprintf("%s_%s%s", base, timestamp, ext)
 }
 
-func writeBufferToFile(path string, buf *bytes.Buffer) error {
-	return os.WriteFile(path, buf.Bytes(), 0644)
+func columnNameToNumber(column string) (int, error) {
+	column = strings.ToUpper(strings.TrimSpace(column))
+	if column == "" {
+		return 0, fmt.Errorf("必须填写目标列")
+	}
+	columnNumber := 0
+	for _, char := range column {
+		if char < 'A' || char > 'Z' {
+			return 0, fmt.Errorf("目标列格式错误: %s", column)
+		}
+		columnNumber = columnNumber*26 + int(char-'A'+1)
+	}
+	return columnNumber, nil
+}
+
+func applyRuleToXLS(path string, req RuleRequest, items []ParsedItem) error {
+	columnNumber, err := columnNameToNumber(req.Column)
+	if err != nil {
+		return err
+	}
+	tempDir, err := os.MkdirTemp("", "excelper-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+
+	if err := convertOfficeFile(path, "xlsx", tempDir); err != nil {
+		return err
+	}
+	xlsxPath := filepath.Join(tempDir, strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))+".xlsx")
+	workbook, err := excelize.OpenFile(xlsxPath)
+	if err != nil {
+		return err
+	}
+	defer workbook.Close()
+
+	sheetName, err := sheetNameByIndex(workbook, req.SheetIndex)
+	if err != nil {
+		return err
+	}
+	rowNumber := req.StartRow
+	for _, item := range items {
+		if item.Inserted {
+			if err := workbook.InsertRows(sheetName, rowNumber, 1); err != nil {
+				return err
+			}
+		}
+		cellName, err := excelize.CoordinatesToCellName(columnNumber, rowNumber)
+		if err != nil {
+			return err
+		}
+		if err := workbook.SetCellStr(sheetName, cellName, req.Prefix+item.Value+req.Suffix); err != nil {
+			return err
+		}
+		rowNumber++
+	}
+
+	editedXLSXPath := filepath.Join(tempDir, "excelper-edited.xlsx")
+	if err := workbook.SaveAs(editedXLSXPath); err != nil {
+		return err
+	}
+	if err := convertOfficeFile(editedXLSXPath, "xls", tempDir); err != nil {
+		return err
+	}
+	editedXLSPath := filepath.Join(tempDir, "excelper-edited.xls")
+	return copyFile(editedXLSPath, path)
+}
+
+func sheetNameByIndex(workbook *excelize.File, index int) (string, error) {
+	sheets := workbook.GetSheetList()
+	if len(sheets) == 0 {
+		return "", fmt.Errorf("工作簿中没有工作表")
+	}
+	if index < 0 || index >= len(sheets) {
+		index = 0
+	}
+	return sheets[index], nil
+}
+
+func convertOfficeFile(inputPath string, format string, outputDir string) error {
+	command := exec.Command("libreoffice", "--headless", "--convert-to", format, "--outdir", outputDir, inputPath)
+	if output, err := command.CombinedOutput(); err != nil {
+		return fmt.Errorf("文件转换失败: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+	return nil
+}
+
+func copyFile(source string, target string) error {
+	input, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	output, err := os.Create(target)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+	_, err = io.Copy(output, input)
+	return err
 }

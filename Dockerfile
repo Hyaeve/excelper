@@ -14,7 +14,7 @@ RUN go build -mod=mod -o /excelper-server ./main.go
 
 FROM alpine:3.20
 WORKDIR /app
-RUN mkdir -p /data
+RUN apk add --no-cache libreoffice && mkdir -p /data
 COPY --from=backend-builder /excelper-server /app/excelper-server
 COPY --from=frontend-builder /frontend/dist /app/frontend-dist
 EXPOSE 3012

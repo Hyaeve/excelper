@@ -53,11 +53,11 @@
         </label>
         <label>
           <span>录入规则</span>
-          <textarea v-model="form.values" rows="7" placeholder="如 51、in58、66、in71、73、76"></textarea>
+          <textarea v-model="form.values" rows="7" placeholder="如 51 +58 66 +71 73 76"></textarea>
         </label>
         <button class="action-button preview" @click="previewResult">预览</button>
         <button class="action-button execute" @click="executeResult">执行</button>
-        <div class="tip">仅允许处理 Docker 挂载目录中的单个 .xls 文件，且每进行一次录入语法操作都必须先定义起始行</div>
+        <div class="tip">空格表示下一行；+ 表示先插入空白行再录入；不带 + 则直接录入原表当前行</div>
       </div>
     </div>
 
@@ -73,7 +73,7 @@
         <div v-if="preview.generated.length" class="result-content">
           <div class="meta-card">
             <div><strong>备份文件：</strong>{{ preview.backupName }}</div>
-            <div><strong>输出文件：</strong>{{ preview.outputName }}</div>
+            <div><strong>输出文件：</strong>{{ preview.outputName }}（覆盖原文件）</div>
           </div>
           <div class="table-wrap generated-wrap">
             <table>

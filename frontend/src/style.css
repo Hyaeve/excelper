@@ -27,7 +27,8 @@ select {
   grid-template-columns: minmax(480px, 1fr) 220px minmax(480px, 1fr);
   gap: 24px;
   padding: 28px;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .panel,
@@ -43,6 +44,7 @@ select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 .panel-header {
@@ -107,6 +109,7 @@ select {
 
 .panel-body {
   flex: 1;
+  min-height: 0;
   padding: 0 28px 28px;
   overflow: auto;
 }
@@ -132,6 +135,7 @@ select {
 }
 
 .table-wrap {
+  max-height: 62vh;
   overflow: auto;
   border-radius: 18px;
   border: 1px solid #e5edf7;
@@ -156,6 +160,8 @@ th {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
+  overflow: auto;
   padding: 22px;
 }
 

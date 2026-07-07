@@ -20,7 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--instruction",
         required=True,
-        help="指令格式：924;25B140-;自交;51,in58,66,in71,73,76",
+        help="指令格式：924;25B140-;自交;51 +58 66 +71 73 76",
     )
     return parser
 
