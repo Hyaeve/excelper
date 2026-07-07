@@ -1,0 +1,9 @@
+services:
+  excelper:
+    image: ghcr.io/hyaeve/excelper:latest
+    container_name: excelper
+    ports:
+      - 13012:3012
+    volumes:
+      - ./mounted-data:/data
+    restart: unless-stopped

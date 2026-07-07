@@ -1,0 +1,208 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  color: #243448;
+  background: #f4f7fb;
+}
+
+body {
+  margin: 0;
+  min-width: 1440px;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f7faff 0%, #edf3fa 100%);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.page-shell {
+  display: grid;
+  grid-template-columns: minmax(480px, 1fr) 220px minmax(480px, 1fr);
+  gap: 24px;
+  padding: 28px;
+  min-height: 100vh;
+}
+
+.panel,
+.center-bar {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(215, 226, 239, 0.9);
+  border-radius: 32px;
+  box-shadow: 0 18px 60px rgba(152, 177, 207, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 26px 28px 18px;
+}
+
+.title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-wrap h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.badge {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #5194ff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.badge.primary {
+  background: #dff0ff;
+  color: #1583ff;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.icon-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid #d7e2ef;
+  background: white;
+  cursor: pointer;
+  font-size: 22px;
+  color: #4e5e75;
+}
+
+.toolbar select,
+.rule-card input,
+.rule-card textarea {
+  width: 100%;
+  border: 1px solid #d7e2ef;
+  border-radius: 16px;
+  background: rgba(246, 249, 253, 0.95);
+  padding: 12px 14px;
+  color: #1f3045;
+}
+
+.panel-body {
+  flex: 1;
+  padding: 0 28px 28px;
+  overflow: auto;
+}
+
+.sheet-preview,
+.result-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sheet-card,
+.meta-card {
+  background: rgba(250, 252, 255, 0.95);
+  border: 1px solid #e5edf7;
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.sheet-title {
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.table-wrap {
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid #e5edf7;
+  background: white;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+td,
+th {
+  border: 1px solid #edf2f8;
+  padding: 10px 12px;
+  min-width: 96px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.center-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+}
+
+.rule-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rule-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rule-card textarea {
+  resize: vertical;
+}
+
+.action-button {
+  border: none;
+  border-radius: 20px;
+  padding: 16px 18px;
+  cursor: pointer;
+  color: white;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.action-button.preview {
+  background: linear-gradient(135deg, #8cc9ff, #2395ff);
+}
+
+.action-button.execute {
+  background: linear-gradient(135deg, #74d4b2, #13a870);
+}
+
+.tip,
+.empty-state {
+  color: #8090a7;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.generated-wrap th {
+  background: #f7fbff;
+}
