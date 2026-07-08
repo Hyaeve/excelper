@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Excelper">
+  <rect x="42" y="28" width="132" height="200" rx="14" fill="none" stroke="#12324a" stroke-width="12"/>
+  <path d="M174 64h28l24 24v140a14 14 0 0 1-14 14H82" fill="none" stroke="#12324a" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M202 64v30h30" fill="none" stroke="#12324a" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M72 92h72M72 124h72M72 156h72M72 188h72" fill="none" stroke="#12324a" stroke-width="10" stroke-linecap="round"/>
+  <path d="M174 146h42M195 125v42" fill="none" stroke="#1a9b73" stroke-width="12" stroke-linecap="round"/>
+</svg>

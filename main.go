@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,23 +62,71 @@ type ParsedItem struct {
 	Raw      string
 }
 
-const mountedDir = "/data"
+var dataDir = resolveDataDir()
 
 func main() {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		panic(err)
+	}
+	port := resolvePort()
+	frontendDir := resolveFrontendDir()
+
 	router := gin.Default()
 	router.MaxMultipartMemory = 32 << 20
-	router.Static("/assets", "./frontend-dist/assets")
-	router.StaticFile("/", "./frontend-dist/index.html")
+	router.Static("/assets", filepath.Join(frontendDir, "assets"))
+	router.StaticFile("/", filepath.Join(frontendDir, "index.html"))
 	router.GET("/api/files", listMountedFiles)
 	router.GET("/api/preview", previewSourceFile)
 	router.POST("/api/preview", previewRule)
 	router.POST("/api/execute", executeRule)
 	router.GET("/api/download/:name", downloadFile)
-	_ = router.Run(":3012")
+	openBrowserOnWindows(port)
+	_ = router.Run(":" + port)
+}
+
+func resolveDataDir() string {
+	if configured := strings.TrimSpace(os.Getenv("EXCELPER_DATA_DIR")); configured != "" {
+		return configured
+	}
+	if runtime.GOOS == "windows" {
+		if executable, err := os.Executable(); err == nil {
+			return filepath.Join(filepath.Dir(executable), "data")
+		}
+	}
+	return "/data"
+}
+
+func resolvePort() string {
+	if configured := strings.TrimSpace(os.Getenv("EXCELPER_PORT")); configured != "" {
+		return configured
+	}
+	return "3012"
+}
+
+func resolveFrontendDir() string {
+	if configured := strings.TrimSpace(os.Getenv("EXCELPER_FRONTEND_DIR")); configured != "" {
+		return configured
+	}
+	if runtime.GOOS == "windows" {
+		if executable, err := os.Executable(); err == nil {
+			return filepath.Join(filepath.Dir(executable), "frontend-dist")
+		}
+	}
+	return "./frontend-dist"
+}
+
+func openBrowserOnWindows(port string) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	go func() {
+		time.Sleep(700 * time.Millisecond)
+		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://127.0.0.1:"+port).Start()
+	}()
 }
 
 func listMountedFiles(ctx *gin.Context) {
-	entries, err := os.ReadDir(mountedDir)
+	entries, err := os.ReadDir(dataDir)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -105,7 +154,7 @@ func previewSourceFile(ctx *gin.Context) {
 	}
 	rowOffset := parseQueryInt(ctx, "offset", 0)
 	rowLimit := parseQueryInt(ctx, "limit", 60)
-	fullPath := filepath.Join(mountedDir, fileName)
+	fullPath := filepath.Join(dataDir, fileName)
 	book, err := xls.Open(fullPath, "utf-8")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -132,7 +181,7 @@ func previewRule(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	book, err := xls.Open(filepath.Join(mountedDir, filepath.Base(req.FileName)), "utf-8")
+	book, err := xls.Open(filepath.Join(dataDir, filepath.Base(req.FileName)), "utf-8")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -163,9 +212,9 @@ func executeRule(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fullPath := filepath.Join(mountedDir, filepath.Base(req.FileName))
+	fullPath := filepath.Join(dataDir, filepath.Base(req.FileName))
 	backupName := buildBackupName(req.FileName)
-	backupPath := filepath.Join(mountedDir, backupName)
+	backupPath := filepath.Join(dataDir, backupName)
 	if err := copyFile(fullPath, backupPath); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -184,7 +233,7 @@ func executeRule(ctx *gin.Context) {
 
 func downloadFile(ctx *gin.Context) {
 	name := filepath.Base(ctx.Param("name"))
-	file, err := os.Open(filepath.Join(mountedDir, name))
+	file, err := os.Open(filepath.Join(dataDir, name))
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -414,11 +463,21 @@ func sheetNameByIndex(workbook *excelize.File, index int) (string, error) {
 }
 
 func convertOfficeFile(inputPath string, format string, outputDir string) error {
-	command := exec.Command("libreoffice", "--headless", "--convert-to", format, "--outdir", outputDir, inputPath)
+	command := exec.Command(resolveOfficeCommand(), "--headless", "--convert-to", format, "--outdir", outputDir, inputPath)
 	if output, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("文件转换失败: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 	return nil
+}
+
+func resolveOfficeCommand() string {
+	if configured := strings.TrimSpace(os.Getenv("EXCELPER_OFFICE_COMMAND")); configured != "" {
+		return configured
+	}
+	if runtime.GOOS == "windows" {
+		return "soffice"
+	}
+	return "libreoffice"
 }
 
 func copyFile(source string, target string) error {

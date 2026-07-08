@@ -133,7 +133,7 @@ const form = reactive({
   column: 'B',
   startRow: null,
   prefix: '',
-  suffix: '',
+  suffix: '自交',
   values: ''
 })
 
