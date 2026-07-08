@@ -232,15 +232,8 @@ func expandRulePart(part string) ([]ParsedItem, error) {
 			if end < start {
 				return nil, fmt.Errorf("区间规则结束值不能小于开始值: %s", part)
 			}
-			last := end
-			if !inserted {
-				last = end - 1
-			}
-			if last < start {
-				return nil, fmt.Errorf("区间规则没有可展开的值: %s", part)
-			}
-			items := make([]ParsedItem, 0, last-start+1)
-			for number := start; number <= last; number++ {
+			items := make([]ParsedItem, 0, end-start+1)
+			for number := start; number <= end; number++ {
 				items = append(items, ParsedItem{
 					Raw:      part,
 					Value:    strconv.Itoa(number),

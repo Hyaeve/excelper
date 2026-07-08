@@ -61,12 +61,9 @@ def _parse_sequence(sequence_text: str) -> list[SequenceItem]:
             end = int(end_text)
             if end < start:
                 raise ValueError(f"区间结束值不能小于开始值: {token}")
-            range_end = end + 1 if inserted else end
-            if range_end <= start:
-                raise ValueError(f"区间没有可展开的值: {token}")
             items.extend(
                 SequenceItem(value=value, inserted=inserted)
-                for value in range(start, range_end)
+                for value in range(start, end + 1)
             )
             continue
 
