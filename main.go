@@ -203,22 +203,54 @@ func parseValues(raw string) ([]ParsedItem, error) {
 	parts := strings.Fields(normalized)
 	items := make([]ParsedItem, 0, len(parts))
 	for _, part := range parts {
-		item := ParsedItem{Raw: part}
-		if strings.HasPrefix(part, "+") {
-			item.Inserted = true
-			item.Value = strings.TrimSpace(strings.TrimPrefix(part, "+"))
-		} else {
-			item.Value = part
+		expanded, err := expandRulePart(part)
+		if err != nil {
+			return nil, err
 		}
-		if item.Value == "" {
-			return nil, fmt.Errorf("规则项为空: %s", part)
-		}
-		items = append(items, item)
+		items = append(items, expanded...)
 	}
 	if len(items) == 0 {
 		return nil, fmt.Errorf("没有可处理的规则项")
 	}
 	return items, nil
+}
+
+func expandRulePart(part string) ([]ParsedItem, error) {
+	inserted := strings.HasPrefix(part, "+")
+	value := part
+	if inserted {
+		value = strings.TrimSpace(strings.TrimPrefix(part, "+"))
+	}
+	if value == "" {
+		return nil, fmt.Errorf("规则项为空: %s", part)
+	}
+	if strings.Count(value, "-") == 1 {
+		bounds := strings.SplitN(value, "-", 2)
+		start, startErr := strconv.Atoi(bounds[0])
+		end, endErr := strconv.Atoi(bounds[1])
+		if startErr == nil && endErr == nil {
+			if end < start {
+				return nil, fmt.Errorf("区间规则结束值不能小于开始值: %s", part)
+			}
+			last := end
+			if !inserted {
+				last = end - 1
+			}
+			if last < start {
+				return nil, fmt.Errorf("区间规则没有可展开的值: %s", part)
+			}
+			items := make([]ParsedItem, 0, last-start+1)
+			for number := start; number <= last; number++ {
+				items = append(items, ParsedItem{
+					Raw:      part,
+					Value:    strconv.Itoa(number),
+					Inserted: inserted,
+				})
+			}
+			return items, nil
+		}
+	}
+	return []ParsedItem{{Raw: part, Value: value, Inserted: inserted}}, nil
 }
 
 func validateRuleRequest(req RuleRequest) error {
@@ -241,7 +273,7 @@ func buildGeneratedPreview(req RuleRequest, items []ParsedItem) []PreviewCell {
 		cells = append(cells, PreviewCell{
 			Row:      row,
 			Column:   strings.ToUpper(strings.TrimSpace(req.Column)),
-			Value:    req.Prefix + item.Value + req.Suffix,
+			Value:    composeCellValue(req, item.Value),
 			Inserted: item.Inserted,
 		})
 		row++
@@ -341,7 +373,14 @@ func applyRuleToXLS(path string, req RuleRequest, items []ParsedItem) error {
 	rowNumber := req.StartRow
 	for _, item := range items {
 		if item.Inserted {
+			rowHeight, err := workbook.GetRowHeight(sheetName, rowNumber)
+			if err != nil {
+				return err
+			}
 			if err := workbook.InsertRows(sheetName, rowNumber, 1); err != nil {
+				return err
+			}
+			if err := workbook.SetRowHeight(sheetName, rowNumber, rowHeight); err != nil {
 				return err
 			}
 		}
@@ -349,7 +388,7 @@ func applyRuleToXLS(path string, req RuleRequest, items []ParsedItem) error {
 		if err != nil {
 			return err
 		}
-		if err := workbook.SetCellStr(sheetName, cellName, req.Prefix+item.Value+req.Suffix); err != nil {
+		if err := workbook.SetCellStr(sheetName, cellName, composeCellValue(req, item.Value)); err != nil {
 			return err
 		}
 		rowNumber++
@@ -364,6 +403,10 @@ func applyRuleToXLS(path string, req RuleRequest, items []ParsedItem) error {
 	}
 	editedXLSPath := filepath.Join(tempDir, "excelper-edited.xls")
 	return copyFile(editedXLSPath, path)
+}
+
+func composeCellValue(req RuleRequest, value string) string {
+	return strings.TrimSpace(req.Prefix) + value + strings.TrimSpace(req.Suffix)
 }
 
 func sheetNameByIndex(workbook *excelize.File, index int) (string, error) {

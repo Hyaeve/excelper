@@ -54,7 +54,7 @@
         </label>
         <label>
           <span>录入规则</span>
-          <textarea v-model="form.values" rows="7" placeholder="如 51 +58 66 +71 73 76"></textarea>
+          <textarea v-model="form.values" rows="7" placeholder="如 51 +58 66 1-10 +5001-5005"></textarea>
         </label>
         <div class="action-row">
           <button class="action-button preview" title="预览" aria-label="预览" @click="previewResult">
@@ -240,6 +240,10 @@ async function previewResult() {
 
 async function executeResult() {
   if (!validateForm()) {
+    return
+  }
+  const confirmed = window.confirm('确认执行录入操作？执行后会先备份原文件，并覆盖写回当前 xls 文件。')
+  if (!confirmed) {
     return
   }
   const response = await fetch('/api/execute', {

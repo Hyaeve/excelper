@@ -22,7 +22,7 @@ def parse_instruction(text: str) -> FillInstruction:
     parts = [part.strip() for part in normalized.split(";") if part.strip()]
     if len(parts) != 4:
         raise ValueError(
-            "指令格式错误，应为：起始行;固定前缀;后缀;51 +58 66 +71"
+            "指令格式错误，应为：起始行;固定前缀;后缀;51 +58 1-10 +5001-5005"
         )
 
     start_row_text, prefix, suffix, sequence_text = parts
@@ -50,12 +50,25 @@ def _parse_sequence(sequence_text: str) -> list[SequenceItem]:
     items: list[SequenceItem] = []
 
     for token in tokens:
-        inserted = False
-        number_text = token
+        inserted = token.startswith("+")
+        number_text = token[1:].strip() if inserted else token
 
-        if token.startswith("+"):
-            inserted = True
-            number_text = token[1:].strip()
+        if "-" in number_text:
+            start_text, end_text = number_text.split("-", 1)
+            if not start_text.isdigit() or not end_text.isdigit():
+                raise ValueError(f"无法解析序列项: {token}")
+            start = int(start_text)
+            end = int(end_text)
+            if end < start:
+                raise ValueError(f"区间结束值不能小于开始值: {token}")
+            range_end = end + 1 if inserted else end
+            if range_end <= start:
+                raise ValueError(f"区间没有可展开的值: {token}")
+            items.extend(
+                SequenceItem(value=value, inserted=inserted)
+                for value in range(start, range_end)
+            )
+            continue
 
         if not number_text.isdigit():
             raise ValueError(f"无法解析序列项: {token}")
